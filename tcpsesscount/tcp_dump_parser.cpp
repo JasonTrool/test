@@ -134,10 +134,10 @@ void TcpDumpParser::parse()
     }
     auto helper = TcpDumpParserHelper::instance();
 
-    auto opened = 0u;
-    auto reset = 0u;
-    auto closed = 0u;
-    auto errors = 0u;
+    uint32_t opened = 0u;
+    uint32_t reset = 0u;
+    uint32_t closed = 0u;
+    uint32_t errors = 0u;
 
     for (const auto &c : helper->connections())
     {

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vector>
+#include <set>
+#include <map>
 
 template <typename StateType>
 class FiniteStateMachine
@@ -11,27 +12,27 @@ public:
 
     void add_transition(StateType from, StateType to)
     {
-        transition_table_.push_back( {from, to} );
+        if (transition_table_.find(from) == transition_table_.end())
+        {
+            transition_table_.insert({ from, std::set<StateType>() });
+        }
+        transition_table_[from].insert(to);
     }
 
-    bool transit_to(StateType current, StateType state)
+    std::pair<StateType, bool> transit(StateType from, StateType to)
     {
-        for (const auto &transition : transition_table_)
+        if (transition_table_.find(from) == transition_table_.end())
         {
-            if (transition.from == current && transition.to == state)
-            {
-                return true;
-            }
+            return std::make_pair(StateType(), false);
         }
-        return false;
+        auto state = transition_table_[from].find(to);
+        if (state != transition_table_[from].end())
+        {
+            return std::make_pair(*state, true);
+        }
+        return std::make_pair(StateType(), false);
     }
 
 private:
-    struct Transition
-    {
-        StateType  from;
-        StateType  to;
-    };
-
-    std::vector<Transition> transition_table_;
+    std::map<StateType, std::set<StateType>> transition_table_;
 };

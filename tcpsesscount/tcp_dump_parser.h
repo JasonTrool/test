@@ -2,36 +2,25 @@
 
 #include <pcap.h>
 
-#include <map>
-
-#include "finite_state_machine.h"
+#include <functional>
+#include <string>
 
 class TcpDumpParser
 {
 public:
-    enum class ConnectionState : int
-    {
-        Initial,
-        Establishing,
-        Established,
-        Closing,
-        Reseting,
-        Closed,
-        Reset
-    };
-
     TcpDumpParser(const std::string &file_path);
+    ~TcpDumpParser();
 
     bool has_error() const;
+    const std::string &error_message() const;
     void parse();
 
 private:
-   static  void packet_handler(u_char *userData, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+    static void packet_handler(u_char *, const pcap_pkthdr *, const u_char *packet);
 
-    pcap_t *descr_;
+private:
+    pcap_t *pcap_descriptor;
 
     bool has_error_;
-
-    FiniteStateMachine<ConnectionState> fsm_;
-    std::map<std::string, ConnectionState> connections_;
+    std::string error_text_;
 };

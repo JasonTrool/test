@@ -6,7 +6,7 @@ int main(int argc, char **argv)
 {
     if (argc != 2)
     {
-        std::cout << "Usage: ./tcpsesscount <file_path>";
+        std::cout << "Usage: ./tcpsesscount <file_path>" << std::endl;
         return 1;
     }
     TcpDumpParser parser(argv[1]);

@@ -12,7 +12,6 @@ enum class ConnectionState : int
     Initial,
     Establishing,
     Established,
-    CloseWait,
     FinWait1,
     FinWait2,
     Closing,
@@ -36,7 +35,6 @@ class TcpDumpParserHelper
 {
 public:
     using tcp_flags_mask = uint8_t;
-    using handler_t = std::function<ConnectionState(ConnectionState)>;
     using connection_t = std::pair<std::string, std::string>;
     using connections_list = std::unordered_map<connection_t, ConnectionState, hash_fn>;
 
@@ -75,8 +73,6 @@ private:
 private:
     static TcpDumpParserHelper *instance_;
 
-    std::unordered_map<tcp_flags_mask, handler_t> flag_handlers_;
     FiniteStateMachine<ConnectionState, uint8_t> fsm_;
-
     connections_list connections_;
 };

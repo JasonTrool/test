@@ -14,5 +14,9 @@ int main(int argc, char **argv)
     {
         parser.parse();
     }
+    else
+    {
+        std::cout << parser.error_message() << std::endl;
+    }
     return 0;
 }

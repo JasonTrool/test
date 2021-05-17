@@ -12,7 +12,11 @@ enum class ConnectionState : int
     Initial,
     Establishing,
     Established,
+    CloseWait,
+    FinWait1,
+    FinWait2,
     Closing,
+    TimeWait,
     Closed,
     Reset
 };
@@ -36,16 +40,23 @@ public:
     using connection_t = std::pair<std::string, std::string>;
     using connections_list = std::unordered_map<connection_t, ConnectionState, hash_fn>;
 
+    enum FlagsFrom
+    {
+        FromClient = 0,
+        FromServer
+    };
+
     enum TcpFlags
     {
-        syn = 1,
-        ack = 2,
-        fin = 4,
-        rst = 8,
+        cli_syn = 0x1,
+        cli_ack = 0x2,
+        cli_fin = 0x4,
+        cli_rst = 0x8,
 
-        synack = syn | ack,
-        finack = fin | ack,
-        rstack = rst | ack
+        srv_syn = 0x10,
+        srv_ack = 0x20,
+        srv_fin = 0x40,
+        srv_rst = 0x80
     };
 
     TcpDumpParserHelper(TcpDumpParserHelper &other) = delete;
@@ -54,7 +65,8 @@ public:
     static TcpDumpParserHelper* instance();
     static bool destroy();
 
-    ConnectionState transit(ConnectionState from, TcpFlags signal);
+    tcp_flags_mask get_tcp_flags_mask(bool syn, bool ack, bool fin, bool rst, FlagsFrom from);
+    ConnectionState transit(ConnectionState from, tcp_flags_mask signal);
     connections_list &connections();
 
 private:
@@ -64,7 +76,7 @@ private:
     static TcpDumpParserHelper *instance_;
 
     std::unordered_map<tcp_flags_mask, handler_t> flag_handlers_;
-    FiniteStateMachine<ConnectionState> fsm_;
+    FiniteStateMachine<ConnectionState, uint8_t> fsm_;
 
     connections_list connections_;
 };

@@ -1,5 +1,4 @@
 #include "tcp_dump_parser.h"
-#include "tcp_dump_parser_helper.h"
 
 #include <net/ethernet.h>
 #include <netinet/ip.h>
@@ -13,6 +12,9 @@
 
 void TcpDumpParser::packet_handler(u_char *, const pcap_pkthdr *, const u_char *packet)
 {
+    using tcp_flags = TcpDumpParserHelper::tcp_flags_mask;
+    using FlagsFrom = TcpDumpParserHelper::FlagsFrom;
+
     auto helper = TcpDumpParserHelper::instance();
     auto &connections = helper->connections();
 
@@ -60,7 +62,7 @@ void TcpDumpParser::packet_handler(u_char *, const pcap_pkthdr *, const u_char *
     }
 
     if (is_tcp)
-    {
+    {   
         // Пытаемся найти пару [адрес назначения, адрес отправки].
         //   В случае промаха пытаемся создать пару [адрес отправки,
         //   адрес назначения]. Если такая пара уже существует -
@@ -72,13 +74,25 @@ void TcpDumpParser::packet_handler(u_char *, const pcap_pkthdr *, const u_char *
         //   соединения прямо в хэш-мапе.
         if ( connection == connections.end() )
         {
-            connection = connections.emplace(std::make_pair(std::make_pair(source_addr, dest_addr),
-                                                                           ConnectionState::Initial)).first;
+            connection = connections.emplace(std::make_pair(std::make_pair(source_addr, dest_addr), ConnectionState::Initial)).first;
         }
 
-        // Грязный и небезопасный хак. Мне так стыдно...
-        int x = tcp_header->syn + 2*tcp_header->ack + 4*tcp_header->fin + 8*tcp_header->rst;
-        TcpDumpParserHelper::TcpFlags flags = TcpDumpParserHelper::TcpFlags(x);
+        const auto &client = connection->first.first;
+        const auto &server = connection->first.second;
+
+        FlagsFrom from;
+
+        if (source_addr == client)
+        {
+            from = FlagsFrom::FromClient;
+        }
+        else if (source_addr == server)
+        {
+            from = FlagsFrom::FromServer;
+        }
+
+        tcp_flags flags = helper->get_tcp_flags_mask(tcp_header->syn, tcp_header->ack,
+                                                     tcp_header->fin, tcp_header->rst, from);
 
         connection->second = helper->transit(connection->second, flags);
     }
@@ -109,7 +123,11 @@ TcpDumpParser::TcpDumpParser(const std::string &file_path)
 
 TcpDumpParser::~TcpDumpParser()
 {
-     pcap_close(pcap_descriptor);
+    if (pcap_descriptor)
+    {
+        pcap_close(pcap_descriptor);
+    }
+    helper_->destroy();
 }
 
 bool TcpDumpParser::has_error() const
@@ -132,40 +150,47 @@ void TcpDumpParser::parse()
         error_text_ = ss.str();
         return;
     }
+    print_report();
+    std::cout << "Capture finished." << std::endl;
+}
+
+void TcpDumpParser::print_report()
+{
     auto helper = TcpDumpParserHelper::instance();
 
-    uint32_t opened = 0u;
-    uint32_t reset = 0u;
-    uint32_t closed = 0u;
-    uint32_t errors = 0u;
+    size_t opened = 0u;
+    size_t reset  = 0u;
+    size_t closed = 0u;
+    size_t errors = 0u;
 
-    for (const auto &c : helper->connections())
+    const auto connections = helper->connections();
+
+    for (const auto &c : connections)
     {
-        if (c.second == ConnectionState::Established)
+        auto state = c.second;
+        if (state == ConnectionState::Established)
         {
             ++opened;
             std::cout << "Connection between " << c.first.first << " and " << c.first.second << " is still opened." << std::endl;
         }
-        else if (c.second == ConnectionState::Reset)
+        else if (state == ConnectionState::Reset)
         {
             ++reset;
             std::cout << "Connection between " << c.first.first << " and " << c.first.second << " has been reset." << std::endl;
         }
-        else if (c.second == ConnectionState::Closed)
+        else if (state == ConnectionState::Closed || state == ConnectionState::TimeWait)
         {
             ++closed;
             std::cout << "Connection between " << c.first.first << " and " << c.first.second << " has been closed." << std::endl;
         }
-        else if (c.second == ConnectionState::ErrorState)
+        else if (state == ConnectionState::ErrorState)
         {
             ++errors;
         }
     }
-    std::cout << "\n" << opened << " connections is still opened.\n";
-    std::cout << reset << " connections has been reset.\n";
-    std::cout << closed << " connections has been closed.\n";
-    std::cout << errors << " parsing errors.\n\n";
-
-    helper->destroy();
-    std::cout << "Capture finished." << std::endl;
+    std::cout << "\nTotal amount of connections: " << connections.size() << "\n";
+    std::cout << opened << " connections are still opened.\n";
+    std::cout << reset  << " connections have been reset.\n";
+    std::cout << closed << " connections have been closed.\n";
+    std::cout << errors << " parsing errors.\n" << std::endl;
 }

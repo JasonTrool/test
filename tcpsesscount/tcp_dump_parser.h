@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tcp_dump_parser_helper.h"
+
 #include <pcap.h>
 
 #include <functional>
@@ -14,6 +16,7 @@ public:
     bool has_error() const;
     const std::string &error_message() const;
     void parse();
+    void print_report();
 
 private:
     static void packet_handler(u_char *, const pcap_pkthdr *, const u_char *packet);
@@ -23,4 +26,6 @@ private:
 
     bool has_error_;
     std::string error_text_;
+
+    static TcpDumpParserHelper *helper_;
 };
